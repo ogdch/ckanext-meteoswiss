@@ -1,4 +1,4 @@
 # This file lists the dependencies of this extension.
 # Install with a command like: pip install -r pip-requirements.txt
-lxml==2.2.4
 boto==2.8.0
+xlrd==0.9.2
