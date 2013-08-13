@@ -21,6 +21,8 @@ class MeteoswissHarvester(HarvesterBase):
     The harvester for meteoswiss
     '''
 
+    HARVEST_USER = u'harvest'
+
     METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz.xlsx'
     FILES_BASE_URL = 'http://opendata-ch.s3.amazonaws.com'
 
@@ -109,7 +111,8 @@ class MeteoswissHarvester(HarvesterBase):
 
         for row in rows:
             if row.get('ckan_entity') == 'Dataset':
-                dataset[row.get('ckan_attribute')] = row.get('value_de')
+                if row.get('value_de'):
+                    dataset[row.get('ckan_attribute')] = row.get('value_de')
 
             if row.get('ckan_entity') == 'Resource':
                 resources.append(row)
@@ -143,7 +146,7 @@ class MeteoswissHarvester(HarvesterBase):
     def info(self):
         return {
             'name': 'meteoswiss',
-            'title': 'METEOSWISS',
+            'title': 'Meteoswiss',
             'description': 'Harvests the meteoswiss data',
             'form_config_interface': 'Text'
         }
@@ -154,8 +157,6 @@ class MeteoswissHarvester(HarvesterBase):
         self._fetch_metadata_file()
         rows = self._get_row_dict_array('Kamerabild')
         webcam_data = self._organize_webcam_data(rows)
-
-        log.debug(webcam_data)
 
         obj = HarvestObject(
             guid = webcam_data.get('id'),
@@ -174,7 +175,6 @@ class MeteoswissHarvester(HarvesterBase):
 
     def import_stage(self, harvest_object):
         log.debug('In Meteoswiss import_stage')
-        return True
 
         if not harvest_object:
             log.error('No harvest object received')
@@ -182,10 +182,17 @@ class MeteoswissHarvester(HarvesterBase):
 
         try:
             package_dict = json.loads(harvest_object.content)
-            self._create_or_update_package(package_dict, harvest_object)
+
+            user = model.User.get(self.HARVEST_USER)
+
+            package = model.Package.get(package_dict['id'])
+            model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
+
+            log.debug('Save or update package %s' % (package_dict['name'],))
+            result = self._create_or_update_package(package_dict, harvest_object)
+
+            Session.commit()
         except Exception, e:
             log.exception(e)
-
-        Session.commit()
-
         return True
+
