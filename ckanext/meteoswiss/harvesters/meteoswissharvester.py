@@ -7,10 +7,10 @@ from boto.s3.key import Key
 
 from ckan import model
 from ckan.model import Session
+from ckan.logic import get_action, action
 
 from ckanext.harvest.model import HarvestJob, HarvestObject
 from ckanext.harvest.harvesters import HarvesterBase
-
 from pylons import config
 
 import logging
@@ -44,7 +44,14 @@ class MeteoswissHarvester(HarvesterBase):
     ]
 
     DATASET_IDS = {
-        'Webcams': 'ch.meteoschweiz.kamerabilder',
+        u'Webcams': u'ch.meteoschweiz.kamerabilder',
+    }
+
+    ORGANIZATION = {
+        u'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
+        u'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
+        u'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
+        u'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
     }
 
     def _get_s3_bucket(self):
@@ -156,12 +163,15 @@ class MeteoswissHarvester(HarvesterBase):
 
         self._fetch_metadata_file()
         rows = self._get_row_dict_array('Kamerabild')
-        webcam_data = self._organize_webcam_data(rows)
+        metadata = self._organize_webcam_data(rows)
+
+        metadata['translations'] = self._generate_term_translations()
+        log.debug(metadata['translations'])
 
         obj = HarvestObject(
-            guid = webcam_data.get('id'),
+            guid = metadata.get('id'),
             job = harvest_job,
-            content = json.dumps(webcam_data)
+            content = json.dumps(metadata)
         )
         obj.save()
 
@@ -185,14 +195,65 @@ class MeteoswissHarvester(HarvesterBase):
 
             user = model.User.get(self.HARVEST_USER)
 
+            context = {
+                'model': model,
+                'session': Session,
+                'user': self.HARVEST_USER
+            }
+
+            # Find or create the organization the dataset should get assigned to
+            package_dict['owner_org'] = self._find_or_create_organization(context)
+
             package = model.Package.get(package_dict['id'])
             model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
 
             log.debug('Save or update package %s' % (package_dict['name'],))
             result = self._create_or_update_package(package_dict, harvest_object)
+            log.debug(result)
+
+            log.debug('Save or update term translations')
+            self._submit_term_translations(context, package_dict)
 
             Session.commit()
         except Exception, e:
             log.exception(e)
         return True
 
+    def _find_or_create_organization(self, context):
+        try:
+            data_dict = {
+                'permission': 'edit_group',
+                'id': self._gen_new_name(self.ORGANIZATION[u'de']),
+                'name': self._gen_new_name(self.ORGANIZATION[u'de']),
+                'title': self.ORGANIZATION[u'de']
+            }
+            organization = get_action('organization_show')(context, data_dict)
+        except:
+            organization = get_action('organization_create')(context, data_dict)
+        return organization['id']
+
+    def _generate_term_translations(self):
+        '''
+        Generate term translatations for organizations
+        '''
+        try:
+            translations = []
+
+            for lang, org in self.ORGANIZATION.items():
+                if lang != u'de':
+                    translations.append({
+                        'lang_code': lang,
+                        'term': self.ORGANIZATION[u'de'],
+                        'term_translation': org
+                    })
+
+            return translations
+
+        except Exception, e:
+            log.exception(e)
+            return []
+
+    def _submit_term_translations(self, context, package_dict):
+        for translation in package_dict['translations']:
+            log.debug(translation)
+            action.update.term_translation_update(context, translation)
