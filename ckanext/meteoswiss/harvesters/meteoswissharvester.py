@@ -1,6 +1,7 @@
 #n -*- coding: utf-8 -*-
 import xlrd
 import json
+import os
 
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
@@ -24,13 +25,23 @@ class MeteoswissHarvester(HarvesterBase):
     HARVEST_USER = u'harvest'
 
     METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz.xlsx'
-    FILES_BASE_URL = 'http://opendata-ch.s3.amazonaws.com'
 
     BUCKET_NAME = u'opendata-ch'
+
     AWS_ACCESS_KEY = config.get('ckanext.meteoswiss.access_key')
     AWS_SECRET_KEY = config.get('ckanext.meteoswiss.secret_key')
 
-    ROW_TYPES = [
+    SHEETS = (
+        # Sheet name        # S3 directory #                            Use GM03 descriptions
+        (u'SMN',            'ch.meteoschweiz.swissmetnet',              False),
+        (u'SMN 3',          'ch.meteoschweiz.swissmetnet',              False),
+        (u'Föhnindex',      'ch.meteoschweiz.swissmetnet-foehnindex',   False),
+        (u'HomogeneDaten',  'ch.meteoschweiz.homogenereihen',           False),
+        (u'Klimanormwerte', 'ch.meteoschweiz.normwerttabellen',         True),
+        (u'Kamerabild',     'ch.meteoschweiz.kamerabilder',             True),
+    )
+
+    ROW_TYPES = (
         'ckan_entity',
         'ckan_attribute',
         'ckan_description',
@@ -41,29 +52,23 @@ class MeteoswissHarvester(HarvesterBase):
         'value_fr',
         'value_it',
         'value_en',
-    ]
-
-    DATASET_IDS = {
-        u'Webcams': u'ch.meteoschweiz.kamerabilder',
-    }
+    )
 
     ORGANIZATION = {
-        u'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
-        u'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
-        u'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
-        u'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
+        'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
+        'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
+        'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
+        'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
     }
 
     def _get_s3_bucket(self):
         '''
         Create an S3 connection to the department bucket
         '''
-        log.debug(self.AWS_ACCESS_KEY)
-        log.debug(self.AWS_SECRET_KEY)
-        conn = S3Connection(self.AWS_ACCESS_KEY, self.AWS_SECRET_KEY)
-        bucket = conn.get_bucket(self.BUCKET_NAME)
-        return bucket
-
+        if not hasattr(self, '_bucket'):
+            conn = S3Connection(self.AWS_ACCESS_KEY, self.AWS_SECRET_KEY)
+            self._bucket = conn.get_bucket(self.BUCKET_NAME)
+        return self._bucket
 
     def _fetch_metadata_file(self):
         '''
@@ -78,7 +83,7 @@ class MeteoswissHarvester(HarvesterBase):
 
     def _get_row_dict_array(self, sheet_name):
         '''
-        Retruns all rows from a sheet as dict
+        Returns all rows from a sheet as dict
         '''
         try:
             wb = xlrd.open_workbook(self.METADATA_FILE_NAME)
@@ -103,52 +108,101 @@ class MeteoswissHarvester(HarvesterBase):
         for value in row_values:
             if isinstance(value, basestring):
                 value = value.strip()
-
             cleaned.append(value)
 
         return cleaned
 
 
-    def _organize_webcam_data(self, rows):
+    def _build_dataset_dict(self, rows):
         '''
-        Seperates dataset and resrouce values
+        Creates a dict from all dataset rows with all values in German
         '''
-        dataset = {}
-        resources = []
+        return dict(
+            (row.get('ckan_attribute'), row.get('value_de'))
+            for row in rows if row.get('ckan_entity') == 'Dataset'
+        )
 
+    def _build_resources_list(self, rows, use_gm03_desc=False):
+        '''
+        Create a list from all resources in the rows
+        '''
+        current = {}
+        resources = [current,]
         for row in rows:
-            if row.get('ckan_entity') == 'Dataset':
-                if row.get('value_de'):
-                    dataset[row.get('ckan_attribute')] = row.get('value_de')
-
             if row.get('ckan_entity') == 'Resource':
-                resources.append(row)
+                attr = row.get('ckan_attribute')
+                if attr in current:
+                    # When attributes is already present in current resource,
+                    # this must be a new one
+                    current = {}
+                    resources.append(current)
+                current[attr] = row.get('value_de')
 
-        dataset_id = self.DATASET_IDS.get(dataset.get('id'))
+                if use_gm03_desc:
+                    current[u'description'] = row.get('gm03_description')
 
-        dataset['resources'] = self._create_webcam_resources(resources, dataset_id)
-        return dataset
+        return resources
 
-
-    def _create_webcam_resources(self, resources, dataset):
+    def _get_s3_resources(self, resources, s3_subdirectory):
         '''
-        Fake resource building for webcam images
+        Lookup all files on S3, an match them with meta descriptions
         '''
-        data = []
-        for row in resources:
-            url = '{base_url}/{dataset}/{file}.jpg'.format(
-                base_url = self.FILES_BASE_URL,
-                dataset = dataset,
-                file = row.get('value_de')
-            )
+        result = []
 
-            data.append({
-                'url': url,
-                'name': row.get('gm03_description'),
-                'format': 'jpg',
-            })
+        for key in self._get_s3_bucket().list(s3_subdirectory):
+            path = key.name.split('/')
+            if len(path) >= 2 and path[0] == s3_subdirectory and key.size > 0:
+                url = key.generate_url(0, query_auth=False, force_http=True)
+                name = os.path.basename(key.name)
 
-        return data
+                data = {
+                    u'url': url,
+                    u'name': name,
+                    u'format': self._guess_format(name),
+                }
+
+                description = self._description_lookup(resources, name)
+                if description:
+                    data.update({u'description': description})
+
+                result.append(data)
+
+        return result
+
+    def _guess_format(self, path):
+        return os.path.splitext(path.lower())[1][1:]
+
+    def _description_lookup(self, resources, filename):
+        '''
+        Check if metafile declared a description to this resource
+        '''
+        basename, ext = os.path.splitext(filename)
+        for resource in resources:
+            if basename in resource.get('id', ''):
+                return resource.get('description')
+            if basename in resource.get('Standort', ''):
+                return resource.get('description')
+
+    def _build_term_translations(self, rows):
+        """
+        Generate meaningful term translations for all translated values
+        """
+        translations = []
+        for row in rows:
+           values = dict(((lang, row.get('value_%s' % lang))
+                          for lang in ('de', 'fr', 'it', 'en')))
+           for lang, value in values.items():
+                # Skip german, empty and values that are not not translated
+                if lang == 'de' or not value or values['de'] == value:
+                    continue
+
+                translations.append({
+                   'lang_code': lang,
+                   'term': values['de'],
+                   'term_translation': value
+                })
+        return translations
+
 
     def info(self):
         return {
@@ -162,24 +216,38 @@ class MeteoswissHarvester(HarvesterBase):
         log.debug('In Meteoswiss gather_stage')
 
         self._fetch_metadata_file()
-        rows = self._get_row_dict_array('Kamerabild')
-        metadata = self._organize_webcam_data(rows)
 
-        metadata['translations'] = self._generate_term_translations()
-        log.debug(metadata['translations'])
+        ids = []
+        for sheet_name, s3_directory, use_gm03_desc in self.SHEETS:
+            log.debug('Gathering %s' % sheet_name)
 
-        obj = HarvestObject(
-            guid = metadata.get('id'),
-            job = harvest_job,
-            content = json.dumps(metadata)
-        )
-        obj.save()
+            rows = self._get_row_dict_array(sheet_name)
 
-        return [obj.id,]
+            metadata = self._build_dataset_dict(rows)
+
+            meta_res = self._build_resources_list(rows, use_gm03_desc)
+            metadata['resources'] = []
+            metadata['resources'] = self._get_s3_resources(meta_res, s3_directory)
+
+            metadata['translations'] = self._build_term_translations(rows) + \
+                                       self._metadata_term_translations()
+
+            obj = HarvestObject(
+                guid = metadata.get('id'),
+                job = harvest_job,
+                content = json.dumps(metadata)
+            )
+
+            obj.save()
+            ids.append(obj.id)
+
+        log.debug(ids)
+
+        return ids
 
     def fetch_stage(self, harvest_object):
         log.debug('In Meteoswiss fetch_stage')
-        harvest_object.save()
+        #harvest_object.save()
 
         return True
 
@@ -204,19 +272,33 @@ class MeteoswissHarvester(HarvesterBase):
             # Find or create the organization the dataset should get assigned to
             package_dict['owner_org'] = self._find_or_create_organization(context)
 
+            # Never import state from data source!
+            if 'state' in package_dict:
+                del package_dict['state']
+
+            # TODO: match package data to groups
+            if 'groups' in package_dict:
+                del package_dict['groups']
+
+            # TODO: Import tags correctly
+            if 'tags' in package_dict:
+                del package_dict['tags']
+
             package = model.Package.get(package_dict['id'])
             model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
 
-            log.debug('Save or update package %s' % (package_dict['name'],))
+            #log.debug('Save or update package %s' % (package_dict['name'],))
             result = self._create_or_update_package(package_dict, harvest_object)
-            log.debug(result)
 
-            log.debug('Save or update term translations')
-            self._submit_term_translations(context, package_dict)
+            #log.debug('Save or update term translations')
+
+            # TODO: Fix term translation import
+            #self._submit_term_translations(context, package_dict)
 
             Session.commit()
         except Exception, e:
             log.exception(e)
+            raise e
         return True
 
     def _find_or_create_organization(self, context):
@@ -232,7 +314,7 @@ class MeteoswissHarvester(HarvesterBase):
             organization = get_action('organization_create')(context, data_dict)
         return organization['id']
 
-    def _generate_term_translations(self):
+    def _metadata_term_translations(self):
         '''
         Generate term translatations for organizations
         '''
@@ -255,5 +337,4 @@ class MeteoswissHarvester(HarvesterBase):
 
     def _submit_term_translations(self, context, package_dict):
         for translation in package_dict['translations']:
-            log.debug(translation)
             action.update.term_translation_update(context, translation)
