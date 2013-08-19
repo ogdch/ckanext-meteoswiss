@@ -32,13 +32,13 @@ class MeteoswissHarvester(HarvesterBase):
     AWS_SECRET_KEY = config.get('ckanext.meteoswiss.secret_key')
 
     SHEETS = (
-        # Sheet name        # S3 directory #                            Use GM03 descriptions
-        (u'SMN',            'ch.meteoschweiz.swissmetnet',              False),
-        (u'SMN 3',          'ch.meteoschweiz.swissmetnet',              False),
-        (u'Föhnindex',      'ch.meteoschweiz.swissmetnet-foehnindex',   False),
-        (u'HomogeneDaten',  'ch.meteoschweiz.homogenereihen',           False),
-        (u'Klimanormwerte', 'ch.meteoschweiz.normwerttabellen',         True),
-        (u'Kamerabild',     'ch.meteoschweiz.kamerabilder',             True),
+        # Sheet name        # Use GM03 descriptions
+        (u'SMN',            False),
+        (u'SMN 3',          False),
+        (u'Föhnindex',      False),
+        (u'HomogeneDaten',  False),
+        (u'Klimanormwerte', True),
+        (u'Kamerabild',     True),
     )
 
     ROW_TYPES = (
@@ -53,6 +53,15 @@ class MeteoswissHarvester(HarvesterBase):
         'value_it',
         'value_en',
     )
+
+    S3_PREFIXES = {
+        u'SMN':             'ch.meteoschweiz.swissmetnet',
+        u'SMN 3':           'ch.meteoschweiz.swissmetnet',
+        u'Föhnindex':       'ch.meteoschweiz.swissmetnet-foehnindex',
+        u'HomogeneDaten':   'ch.meteoschweiz.homogenereihen',
+        u'Klimanormwerte':  'ch.meteoschweiz.normwerttabellen',
+        u'Kamerabild':      'ch.meteoschweiz.kamerabilder',
+    }
 
     ORGANIZATION = {
         u'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
@@ -150,15 +159,15 @@ class MeteoswissHarvester(HarvesterBase):
 
         return resources
 
-    def _get_s3_resources(self, resources, s3_subdirectory):
+    def _get_s3_resources(self, resources, s3_prefix):
         '''
         Lookup all files on S3, an match them with meta descriptions
         '''
         result = []
 
-        for key in self._get_s3_bucket().list(s3_subdirectory):
+        for key in self._get_s3_bucket().list(s3_prefix):
             path = key.name.split('/')
-            if len(path) >= 2 and path[0] == s3_subdirectory and key.size > 0:
+            if len(path) >= 2 and path[0] == s3_prefix and key.size > 0:
                 url = key.generate_url(0, query_auth=False, force_http=True)
                 name = os.path.basename(key.name)
 
@@ -239,19 +248,19 @@ class MeteoswissHarvester(HarvesterBase):
         self._fetch_metadata_file()
 
         ids = []
-        for sheet_name, s3_directory, use_gm03_desc in self.SHEETS:
+        for sheet_name, use_gm03_desc in self.SHEETS:
             log.debug('Gathering %s' % sheet_name)
 
             rows = self._get_row_dict_array(sheet_name)
 
             metadata = self._build_dataset_dict(rows)
 
-            meta_res = self._build_resources_list(rows, use_gm03_desc)
-            metadata['resources'] = []
-            metadata['resources'] = self._get_s3_resources(meta_res, s3_directory)
+            metadata['_res'] = self._build_resources_list(rows, use_gm03_desc)
 
             metadata['translations'] = self._build_term_translations(rows) + \
                                        self._metadata_term_translations()
+
+            metadata['sheet_name'] = sheet_name
 
             obj = HarvestObject(
                 guid = metadata.get('id'),
@@ -262,13 +271,27 @@ class MeteoswissHarvester(HarvesterBase):
             obj.save()
             ids.append(obj.id)
 
-        log.debug(ids)
-
         return ids
 
     def fetch_stage(self, harvest_object):
         log.debug('In Meteoswiss fetch_stage')
-        #harvest_object.save()
+        package_dict = json.loads(harvest_object.content)
+
+        sheet_name = package_dict.get('sheet_name')
+        s3_prefix = self.S3_PREFIXES.get(sheet_name)
+
+        if s3_prefix:
+            log.debug('Loading S3 Resources for %s' % sheet_name)
+            package_dict['resources'] = self._get_s3_resources(
+                package_dict.get('_res', []),
+                s3_prefix
+            )
+
+            if '_res' in package_dict:
+                del package_dict['_res']
+
+            harvest_object.content = json.dumps(package_dict)
+            harvest_object.save()
 
         return True
 
