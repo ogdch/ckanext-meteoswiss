@@ -133,10 +133,27 @@ class MeteoswissHarvester(HarvesterBase):
         '''
         Creates a dict from all dataset rows with all values in German
         '''
-        return dict(
-            (row.get('ckan_attribute'), row.get('value_de'))
-            for row in rows if row.get('ckan_entity') == 'Dataset'
+        dataset = {}
+
+        attributes = (
+            'id',
+            'title',
+            'url',
+            'notes',
+            'author',
+            'maintainer',
+            'maintainer_email',
+            'license',
+            'license_url',
+            'tags',
         )
+
+        for row in rows:
+            if row.get('ckan_entity') == 'Dataset' and \
+               row.get('ckan_attribute') in attributes:
+                dataset[row.get('ckan_attribute')] = row.get('value_de')
+
+        return dataset
 
     def _build_resources_list(self, rows, use_gm03_desc=False):
         '''
