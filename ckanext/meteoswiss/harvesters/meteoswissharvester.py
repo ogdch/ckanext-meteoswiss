@@ -216,7 +216,7 @@ class MeteoswissHarvester(HarvesterBase):
             if basename in resource.get('Standort', ''):
                 return resource.get('description')
 
-    def _build_term_translations(self, rows):
+    def _build_term_translations(self, rows, skip_terms=[]):
         """
         Generate meaningful term translations for all translated values
         """
@@ -227,6 +227,10 @@ class MeteoswissHarvester(HarvesterBase):
                           for lang in ('de', 'fr', 'it', 'en')))
             for lang, trans in values.items():
                 term = values.get('de')
+
+                # Some thing are just not meant to be translated :-(
+                if term in skip_terms:
+                    continue
 
                 # Skip german, empty and values that are not not translated
                 if lang != 'de' and term and trans and term != trans:
@@ -274,8 +278,9 @@ class MeteoswissHarvester(HarvesterBase):
 
             metadata['_res'] = self._build_resources_list(rows, use_gm03_desc)
 
-            metadata['translations'] = self._build_term_translations(rows) + \
-                                       self._metadata_term_translations()
+            metadata['translations'] = self._build_term_translations(rows,
+                                                skip_terms=[metadata.get('id')])
+            metadata['translations'].extend(self._metadata_term_translations())
 
             metadata['sheet_name'] = sheet_name
 
