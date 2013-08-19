@@ -222,8 +222,8 @@ class MeteoswissHarvester(HarvesterBase):
                             for term, trans in zip(split_term, split_trans):
                                 translations.append({
                                    u'lang_code': lang,
-                                   u'term': term,
-                                   u'term_translation': trans
+                                   u'term': self._gen_new_name(term),
+                                   u'term_translation': self._gen_new_name(trans)
                                 })
                     else:
                         translations.append({
