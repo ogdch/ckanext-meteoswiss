@@ -191,16 +191,16 @@ class MeteoswissHarvester(HarvesterBase):
         for row in rows:
            values = dict(((lang, row.get('value_%s' % lang))
                           for lang in ('de', 'fr', 'it', 'en')))
-           for lang, value in values.items():
-                # Skip german, empty and values that are not not translated
-                if lang == 'de' or not value or values['de'] == value:
-                    continue
+           for lang, trans in values.items():
+                term = values.get('de')
 
-                translations.append({
-                   'lang_code': lang,
-                   'term': values['de'],
-                   'term_translation': value
-                })
+                # Skip german, empty and values that are not not translated
+                if lang != 'de' and term and trans and term != trans:
+                    translations.append({
+                       u'lang_code': lang,
+                       u'term': term,
+                       u'term_translation': trans
+                    })
         return translations
 
 
@@ -290,10 +290,8 @@ class MeteoswissHarvester(HarvesterBase):
             #log.debug('Save or update package %s' % (package_dict['name'],))
             result = self._create_or_update_package(package_dict, harvest_object)
 
-            #log.debug('Save or update term translations')
-
-            # TODO: Fix term translation import
-            #self._submit_term_translations(context, package_dict)
+            log.debug('Save or update term translations')
+            self._submit_term_translations(context, package_dict)
 
             Session.commit()
         except Exception, e:
