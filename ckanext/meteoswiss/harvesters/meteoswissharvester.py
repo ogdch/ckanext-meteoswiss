@@ -55,10 +55,17 @@ class MeteoswissHarvester(HarvesterBase):
     )
 
     ORGANIZATION = {
-        'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
-        'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
-        'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
-        'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
+        u'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
+        u'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
+        u'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
+        u'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
+    }
+
+    GROUPS = {
+        u'de': [u'Raum und Umwelt'],
+        u'fr': [u'Espace et environnement'],
+        u'it': [u'Territorio e ambiente'],
+        u'en': [u'Territory and environment']
     }
 
     def _get_s3_bucket(self):
@@ -269,16 +276,15 @@ class MeteoswissHarvester(HarvesterBase):
                 'user': self.HARVEST_USER
             }
 
+            # Find or create group the dataset should get assigned to
+            package_dict['groups'] = self._find_or_create_groups(context)
+
             # Find or create the organization the dataset should get assigned to
             package_dict['owner_org'] = self._find_or_create_organization(context)
 
             # Never import state from data source!
             if 'state' in package_dict:
                 del package_dict['state']
-
-            # TODO: match package data to groups
-            if 'groups' in package_dict:
-                del package_dict['groups']
 
             # TODO: Import tags correctly
             if 'tags' in package_dict:
@@ -298,6 +304,22 @@ class MeteoswissHarvester(HarvesterBase):
             log.exception(e)
             raise e
         return True
+
+    def _find_or_create_groups(self, context):
+        group_name = self.GROUPS['de'][0]
+        data_dict = {
+            'id': group_name,
+            'name': self._gen_new_name(group_name),
+            'title': group_name
+            }
+        try:
+            group = get_action('group_show')(context, data_dict)
+        except:
+            group = get_action('group_create')(context, data_dict)
+            log.info('created the group ' + group['id'])
+        group_ids = []
+        group_ids.append(group['id'])
+        return group_ids
 
     def _find_or_create_organization(self, context):
         try:
