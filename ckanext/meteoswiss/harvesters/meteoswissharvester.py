@@ -99,7 +99,7 @@ class MeteoswissHarvester(HarvesterBase):
             rows = []
             for row_num in range(1, worksheet.nrows):
                 row_values = worksheet.row_values(row_num)
-                row_values_clean = self._clean_row_values(row_values)
+                row_values_clean = self._clean_values(row_values)
                 row_data = dict(zip(self.ROW_TYPES, row_values_clean))
                 rows.append(row_data)
 
@@ -107,7 +107,7 @@ class MeteoswissHarvester(HarvesterBase):
         except Exception:
             return []
 
-    def _clean_row_values(self, row_values):
+    def _clean_values(self, row_values):
         '''
         Strip whitespace from all string
         '''
@@ -196,18 +196,32 @@ class MeteoswissHarvester(HarvesterBase):
         """
         translations = []
         for row in rows:
-           values = dict(((lang, row.get('value_%s' % lang))
+            key = row.get('ckan_attribute')
+            values = dict(((lang, row.get('value_%s' % lang))
                           for lang in ('de', 'fr', 'it', 'en')))
-           for lang, trans in values.items():
+            for lang, trans in values.items():
                 term = values.get('de')
 
                 # Skip german, empty and values that are not not translated
                 if lang != 'de' and term and trans and term != trans:
-                    translations.append({
-                       u'lang_code': lang,
-                       u'term': term,
-                       u'term_translation': trans
-                    })
+                    if key == 'tags':
+                        # Tags are splitted and translated each
+                        split_term = self._clean_values(term.split(','))
+                        split_trans = self._clean_values(trans.split(','))
+
+                        if len(split_term) == len(split_trans):
+                            for term, trans in zip(split_term, split_trans):
+                                translations.append({
+                               u'lang_code': lang,
+                               u'term': term,
+                               u'term_translation': trans
+                            })
+                    else:
+                        translations.append({
+                           u'lang_code': lang,
+                           u'term': term,
+                           u'term_translation': trans
+                        })
         return translations
 
 
@@ -286,9 +300,14 @@ class MeteoswissHarvester(HarvesterBase):
             if 'state' in package_dict:
                 del package_dict['state']
 
-            # TODO: Import tags correctly
-            if 'tags' in package_dict:
+            # Split tags
+            tags = self._clean_values(package_dict.get('tags', '').split(','))
+            if '' not in tags and '(tbd)' not in tags:
+                package_dict['tags'] = tags
+            else:
                 del package_dict['tags']
+
+
 
             package = model.Package.get(package_dict['id'])
             model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
