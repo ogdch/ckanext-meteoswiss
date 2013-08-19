@@ -221,10 +221,10 @@ class MeteoswissHarvester(HarvesterBase):
                         if len(split_term) == len(split_trans):
                             for term, trans in zip(split_term, split_trans):
                                 translations.append({
-                               u'lang_code': lang,
-                               u'term': term,
-                               u'term_translation': trans
-                            })
+                                   u'lang_code': lang,
+                                   u'term': term,
+                                   u'term_translation': trans
+                                })
                     else:
                         translations.append({
                            u'lang_code': lang,
