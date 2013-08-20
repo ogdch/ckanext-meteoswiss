@@ -45,7 +45,7 @@ class MeteoswissHarvester(HarvesterBase):
 
     S3_PREFIXES = {
         u'SMN':             'ch.meteoschweiz.swissmetnet',
-        u'SMN 3':           'ch.meteoschweiz.swissmetnet',
+        u'SMN 3':           'ch.meteoschweiz.swissmetnet-niederschlag',
         u'Föhnindex':       'ch.meteoschweiz.swissmetnet-foehnindex',
         u'HomogeneDaten':   'ch.meteoschweiz.homogenereihen',
         u'Klimanormwerte':  'ch.meteoschweiz.normwerttabellen',
