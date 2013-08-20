@@ -2,6 +2,7 @@
 import xlrd
 import json
 import os
+from uuid import NAMESPACE_OID, uuid4, uuid5
 
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
@@ -137,6 +138,7 @@ class MeteoswissHarvester(HarvesterBase):
 
         attributes = (
             'id',
+            'name',
             'title',
             'url',
             'notes',
@@ -216,7 +218,7 @@ class MeteoswissHarvester(HarvesterBase):
             if basename in resource.get('Standort', ''):
                 return resource.get('description')
 
-    def _build_term_translations(self, rows, skip_terms=[]):
+    def _build_term_translations(self, rows):
         """
         Generate meaningful term translations for all translated values
         """
@@ -227,10 +229,6 @@ class MeteoswissHarvester(HarvesterBase):
                           for lang in ('de', 'fr', 'it', 'en')))
             for lang, trans in values.items():
                 term = values.get('de')
-
-                # Some thing are just not meant to be translated :-(
-                if term in skip_terms:
-                    continue
 
                 # Skip german, empty and values that are not not translated
                 if lang != 'de' and term and trans and term != trans:
@@ -278,14 +276,13 @@ class MeteoswissHarvester(HarvesterBase):
 
             metadata['_res'] = self._build_resources_list(rows, use_gm03_desc)
 
-            metadata['translations'] = self._build_term_translations(rows,
-                                                skip_terms=[metadata.get('id')])
+            metadata['translations'] = self._build_term_translations(rows)
             metadata['translations'].extend(self._metadata_term_translations())
 
             metadata['sheet_name'] = sheet_name
 
             obj = HarvestObject(
-                guid = metadata.get('id'),
+                #guid = metadata.get('id'),
                 job = harvest_job,
                 content = json.dumps(metadata)
             )
@@ -317,6 +314,17 @@ class MeteoswissHarvester(HarvesterBase):
 
         return True
 
+    def _create_uuid(self, name=None):
+        '''
+        Create a new SHA-1 uuid for a given name or a random id
+        '''
+        if name:
+            new_uuid = uuid5(NAMESPACE_OID, str(name))
+        else:
+            new_uuid = uuid4()
+
+        return unicode(new_uuid)
+
     def import_stage(self, harvest_object):
         log.debug('In Meteoswiss import_stage')
 
@@ -335,6 +343,8 @@ class MeteoswissHarvester(HarvesterBase):
                 'user': self.HARVEST_USER
             }
 
+            package_dict['id'] = self._create_uuid(package_dict.get('id'))
+
             # Find or create group the dataset should get assigned to
             package_dict['groups'] = self._find_or_create_groups(context)
 
@@ -351,8 +361,6 @@ class MeteoswissHarvester(HarvesterBase):
                 package_dict['tags'] = tags
             else:
                 del package_dict['tags']
-
-
 
             package = model.Package.get(package_dict['id'])
             model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
