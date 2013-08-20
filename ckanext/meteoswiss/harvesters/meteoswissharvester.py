@@ -29,8 +29,7 @@ class MeteoswissHarvester(HarvesterBase):
 
     METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz.xlsx'
 
-    BUCKET_NAME = u'opendata-ch'
-
+    BUCKET_NAME = config.get('ckanext.meteoswiss.bucket_name', 'opendata-ch')
     AWS_ACCESS_KEY = config.get('ckanext.meteoswiss.access_key')
     AWS_SECRET_KEY = config.get('ckanext.meteoswiss.secret_key')
 
