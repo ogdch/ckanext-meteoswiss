@@ -15,6 +15,8 @@ from ckanext.harvest.model import HarvestJob, HarvestObject
 from ckanext.harvest.harvesters import HarvesterBase
 from pylons import config
 
+from ..helpers.metadata import MetaDataParser
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -40,19 +42,6 @@ class MeteoswissHarvester(HarvesterBase):
         (u'HomogeneDaten',  False),
         (u'Klimanormwerte', True),
         (u'Kamerabild',     True),
-    )
-
-    ROW_TYPES = (
-        'ckan_entity',
-        'ckan_attribute',
-        'ckan_description',
-        'gm03_source',
-        'gm03_description',
-        'cardinality',
-        'value_de',
-        'value_fr',
-        'value_it',
-        'value_en',
     )
 
     S3_PREFIXES = {
@@ -89,7 +78,7 @@ class MeteoswissHarvester(HarvesterBase):
 
     def _fetch_metadata_file(self):
         '''
-        Fetching the Excel metadata file for the SFA from the S3 Bucket and save on disk
+        Fetching the Excel metadata file from the S3 Bucket and save on disk
         '''
         try:
             metadata_file = Key(self._get_s3_bucket())
@@ -98,85 +87,6 @@ class MeteoswissHarvester(HarvesterBase):
         except Exception, e:
             log.exception(e)
 
-    def _get_row_dict_array(self, sheet_name):
-        '''
-        Returns all rows from a sheet as dict
-        '''
-        try:
-            wb = xlrd.open_workbook(self.METADATA_FILE_NAME)
-            worksheet = wb.sheet_by_name(sheet_name)
-
-            rows = []
-            for row_num in range(1, worksheet.nrows):
-                row_values = worksheet.row_values(row_num)
-                row_values_clean = self._clean_values(row_values)
-                row_data = dict(zip(self.ROW_TYPES, row_values_clean))
-                rows.append(row_data)
-
-            return rows
-        except Exception:
-            return []
-
-    def _clean_values(self, row_values):
-        '''
-        Strip whitespace from all string
-        '''
-        cleaned = []
-        for value in row_values:
-            if isinstance(value, basestring):
-                value = value.strip()
-            cleaned.append(value)
-
-        return cleaned
-
-
-    def _build_dataset_dict(self, rows):
-        '''
-        Creates a dict from all dataset rows with all values in German
-        '''
-        dataset = {}
-
-        attributes = (
-            'id',
-            'name',
-            'title',
-            'url',
-            'notes',
-            'author',
-            'maintainer',
-            'maintainer_email',
-            'license',
-            'license_url',
-            'tags',
-        )
-
-        for row in rows:
-            if row.get('ckan_entity') == 'Dataset' and \
-               row.get('ckan_attribute') in attributes:
-                dataset[row.get('ckan_attribute')] = row.get('value_de')
-
-        return dataset
-
-    def _build_resources_list(self, rows, use_gm03_desc=False):
-        '''
-        Create a list from all resources in the rows
-        '''
-        current = {}
-        resources = [current,]
-        for row in rows:
-            if row.get('ckan_entity') == 'Resource':
-                attr = row.get('ckan_attribute')
-                if attr in current:
-                    # When attributes is already present in current resource,
-                    # this must be a new one
-                    current = {}
-                    resources.append(current)
-                current[attr] = row.get('value_de')
-
-                if use_gm03_desc:
-                    current[u'description'] = row.get('gm03_description')
-
-        return resources
 
     def _get_s3_resources(self, resources, s3_prefix):
         '''
@@ -218,40 +128,6 @@ class MeteoswissHarvester(HarvesterBase):
             if basename in resource.get('Standort', ''):
                 return resource.get('description')
 
-    def _build_term_translations(self, rows):
-        """
-        Generate meaningful term translations for all translated values
-        """
-        translations = []
-        for row in rows:
-            key = row.get('ckan_attribute')
-            values = dict(((lang, row.get('value_%s' % lang))
-                          for lang in ('de', 'fr', 'it', 'en')))
-            for lang, trans in values.items():
-                term = values.get('de')
-
-                # Skip german, empty and values that are not not translated
-                if lang != 'de' and term and trans and term != trans:
-                    if key == 'tags':
-                        # Tags are splitted and translated each
-                        split_term = self._clean_values(term.split(','))
-                        split_trans = self._clean_values(trans.split(','))
-
-                        if len(split_term) == len(split_trans):
-                            for term, trans in zip(split_term, split_trans):
-                                translations.append({
-                                   u'lang_code': lang,
-                                   u'term': self._gen_new_name(term),
-                                   u'term_translation': self._gen_new_name(trans)
-                                })
-                    else:
-                        translations.append({
-                           u'lang_code': lang,
-                           u'term': term,
-                           u'term_translation': trans
-                        })
-        return translations
-
 
     def info(self):
         return {
@@ -270,15 +146,10 @@ class MeteoswissHarvester(HarvesterBase):
         for sheet_name, use_gm03_desc in self.SHEETS:
             log.debug('Gathering %s' % sheet_name)
 
-            rows = self._get_row_dict_array(sheet_name)
+            parser = MetaDataParser(self.METADATA_FILE_NAME)
 
-            metadata = self._build_dataset_dict(rows)
-
-            metadata['_res'] = self._build_resources_list(rows, use_gm03_desc)
-
-            metadata['translations'] = self._build_term_translations(rows)
+            metadata = parser.parse_sheet(sheet_name, use_gm03_desc)
             metadata['translations'].extend(self._metadata_term_translations())
-
             metadata['sheet_name'] = sheet_name
 
             obj = HarvestObject(
@@ -302,12 +173,9 @@ class MeteoswissHarvester(HarvesterBase):
         if s3_prefix:
             log.debug('Loading S3 Resources for %s' % sheet_name)
             package_dict['resources'] = self._get_s3_resources(
-                package_dict.get('_res', []),
+                package_dict.get('resources', []),
                 s3_prefix
             )
-
-            if '_res' in package_dict:
-                del package_dict['_res']
 
             harvest_object.content = json.dumps(package_dict)
             harvest_object.save()
@@ -356,7 +224,9 @@ class MeteoswissHarvester(HarvesterBase):
                 del package_dict['state']
 
             # Split tags
-            tags = self._clean_values(package_dict.get('tags', '').split(','))
+            tags = package_dict.get('tags', '').split(',')
+            tags = [tag.strip() for tag in tags]
+
             if '' not in tags and '(tbd)' not in tags:
                 package_dict['tags'] = tags
             else:
