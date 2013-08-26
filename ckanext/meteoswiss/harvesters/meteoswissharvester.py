@@ -40,7 +40,7 @@ class MeteoswissHarvester(HarvesterBase):
         (u'Föhnindex',      False),
         (u'HomogeneDaten',  False),
         (u'Klimanormwerte', True),
-        (u'Kamerabild',     True),
+        #(u'Kamerabild',     True),
     )
 
     S3_PREFIXES = {
