@@ -27,16 +27,19 @@ class MeteoswissHarvester(HarvesterBase):
 
     HARVEST_USER = u'harvest'
 
-    METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz.xlsx'
 
-    BUCKET_NAME = config.get('ckanext.meteoswiss.bucket_name', 'opendata-ch')
+    METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz_rig_V3 6.xlsx'
+    METADATA_FILE_PATH = u'ch.meteoschweiz.normwerttabellen/%s' % METADATA_FILE_NAME
+
+
+    BUCKET_NAME = config.get('ckanext.meteoswiss.bucket_name')
     AWS_ACCESS_KEY = config.get('ckanext.meteoswiss.access_key')
     AWS_SECRET_KEY = config.get('ckanext.meteoswiss.secret_key')
 
     SHEETS = (
         # Sheet name        # Use GM03 descriptions
         (u'SMN',            False),
-        (u'SMN 3',          False),
+        (u'SMN-precip',     False),
         (u'Föhnindex',      False),
         (u'HomogeneDaten',  False),
         (u'Klimanormwerte', True),
@@ -45,7 +48,7 @@ class MeteoswissHarvester(HarvesterBase):
 
     S3_PREFIXES = {
         u'SMN':             'ch.meteoschweiz.swissmetnet',
-        u'SMN 3':           'ch.meteoschweiz.swissmetnet-niederschlag',
+        u'SMN-precip':      'ch.meteoschweiz.swissmetnet-niederschlag',
         u'Föhnindex':       'ch.meteoschweiz.swissmetnet-foehnindex',
         u'HomogeneDaten':   'ch.meteoschweiz.homogenereihen',
         u'Klimanormwerte':  'ch.meteoschweiz.normwerttabellen',
@@ -71,8 +74,12 @@ class MeteoswissHarvester(HarvesterBase):
         Create an S3 connection to the department bucket
         '''
         if not hasattr(self, '_bucket'):
-            conn = S3Connection(self.AWS_ACCESS_KEY, self.AWS_SECRET_KEY)
-            self._bucket = conn.get_bucket(self.BUCKET_NAME)
+            try:
+                conn = S3Connection(self.AWS_ACCESS_KEY, self.AWS_SECRET_KEY)
+                self._bucket = conn.get_bucket(self.BUCKET_NAME)
+            except Exception, e:
+                log.exception(e)
+                raise e
         return self._bucket
 
     def _fetch_metadata_file(self):
@@ -81,7 +88,7 @@ class MeteoswissHarvester(HarvesterBase):
         '''
         try:
             metadata_file = Key(self._get_s3_bucket())
-            metadata_file.key = self.METADATA_FILE_NAME
+            metadata_file.key = self.METADATA_FILE_PATH
             metadata_file.get_contents_to_filename(self.METADATA_FILE_NAME)
         except Exception, e:
             log.exception(e)
@@ -95,6 +102,11 @@ class MeteoswissHarvester(HarvesterBase):
 
         for key in self._get_s3_bucket().list(s3_prefix):
             path = key.name.split('/')
+
+            # Skip metadata file
+            if key.name == self.METADATA_FILE_PATH:
+                continue
+
             if len(path) >= 2 and path[0] == s3_prefix and key.size > 0:
                 url = key.generate_url(0, query_auth=False, force_http=True)
                 name = os.path.basename(key.name)
