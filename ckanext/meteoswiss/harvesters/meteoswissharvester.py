@@ -92,6 +92,7 @@ class MeteoswissHarvester(HarvesterBase):
             metadata_file.get_contents_to_filename(self.METADATA_FILE_NAME)
         except Exception, e:
             log.exception(e)
+            raise
 
 
     def _get_s3_resources(self, resources, s3_prefix):
@@ -306,7 +307,7 @@ class MeteoswissHarvester(HarvesterBase):
 
         except Exception, e:
             log.exception(e)
-            return []
+            raise
 
     def _submit_term_translations(self, context, package_dict):
         for translation in package_dict['translations']:
