@@ -30,6 +30,7 @@ class MetaDataParser(object):
         'maintainer_email',
         'license_id',
         'license_url',
+        'licence_url', # Support typo
         'tags',
     )
 

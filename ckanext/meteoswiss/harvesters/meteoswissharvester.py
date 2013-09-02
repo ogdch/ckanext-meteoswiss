@@ -231,6 +231,17 @@ class MeteoswissHarvester(HarvesterBase):
             # Find or create the organization the dataset should get assigned to
             package_dict['owner_org'] = self._find_or_create_organization(context)
 
+            # because license_url does not exist, we save it in extras for now
+            extras = []
+            if 'licence_url' in package_dict:
+                extras.append(('license_url', package_dict['licence_url']))
+            elif 'license_url' in package_dict:
+                extras.append(('license_url', package_dict['license_url']))
+
+            package_dict['extras'] = extras
+            log.debug('Extras %s' % extras)
+
+
             # Never import state from data source!
             if 'state' in package_dict:
                 del package_dict['state']
