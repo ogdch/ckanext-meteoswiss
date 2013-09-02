@@ -28,7 +28,7 @@ class MetaDataParser(object):
         'author',
         'maintainer',
         'maintainer_email',
-        'license',
+        'license_id',
         'license_url',
         'tags',
     )
