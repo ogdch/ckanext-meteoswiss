@@ -88,6 +88,9 @@ class MetaDataParser(object):
             if row.get('ckan_entity') == 'Dataset' and \
                row.get('ckan_attribute') in self.DATASET_ATTRIBUTES:
                 dataset[row.get('ckan_attribute')] = row.get('value_de')
+        
+        if 'name' in dataset:
+            dataset['name'] = munge_tag(dataset['name'])
 
         return dataset
 
