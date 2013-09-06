@@ -1,8 +1,8 @@
 #!/bin/bash
 
 DAEMON=/home/www-data/pyenv/bin/python
-ARGS="/home/www-data/pyenv/bin/paster --plugin=ckanext-swisstopo swisstopoharvester gather_consumer --config=/home/www-data/production.ini"
-PIDFILE=/home/www-data/pid/swisstopo_gather.pid
+ARGS="/home/www-data/pyenv/bin/paster --plugin=ckanext-meteoswiss meteoswisstopoharvester fetch_consumer --config=/home/www-data/production.ini"
+PIDFILE=/home/www-data/pid/meteoswiss_fetch.pid
 
 function start {
     /sbin/start-stop-daemon --start --pidfile $PIDFILE \
