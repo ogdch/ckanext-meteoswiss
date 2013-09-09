@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DAEMON=/home/www-data/pyenv/bin/python
-ARGS="/home/www-data/pyenv/bin/paster --plugin=ckanext-meteoswiss meteoswissharvester gather_consumer --config=/home/www-data/production.ini"
+ARGS="/home/www-data/pyenv/bin/paster --plugin=ckanext-meteoswiss meteoswiss_harvest gather_consumer --config=/home/www-data/production.ini"
 PIDFILE=/home/www-data/pid/meteoswiss_gather.pid
 
 function start {
