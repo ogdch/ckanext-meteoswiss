@@ -2,6 +2,7 @@
 import xlrd
 import json
 import os
+import tempfile
 from uuid import NAMESPACE_OID, uuid4, uuid5
 
 from boto.s3.connection import S3Connection
@@ -87,9 +88,13 @@ class MeteoswissHarvester(HarvesterBase):
         Fetching the Excel metadata file from the S3 Bucket and save on disk
         '''
         try:
+            temp_dir = tempfile.mkdtemp()
             metadata_file = Key(self._get_s3_bucket())
             metadata_file.key = self.METADATA_FILE_PATH
-            metadata_file.get_contents_to_filename(self.METADATA_FILE_NAME)
+
+            metadata_file_path = os.path.join(temp_dir, self.METADATA_FILE_NAME)
+            metadata_file.get_contents_to_filename(metadata_file_path)
+            return metadata_file_path
         except Exception, e:
             log.exception(e)
             raise
@@ -152,13 +157,13 @@ class MeteoswissHarvester(HarvesterBase):
     def gather_stage(self, harvest_job):
         log.debug('In Meteoswiss gather_stage')
 
-        self._fetch_metadata_file()
+        file_path = self._fetch_metadata_file()
 
         ids = []
         for sheet_name, use_gm03_desc in self.SHEETS:
             log.debug('Gathering %s' % sheet_name)
 
-            parser = MetaDataParser(self.METADATA_FILE_NAME)
+            parser = MetaDataParser(file_path)
 
             metadata = parser.parse_sheet(sheet_name, use_gm03_desc)
             metadata['translations'].extend(self._metadata_term_translations())
