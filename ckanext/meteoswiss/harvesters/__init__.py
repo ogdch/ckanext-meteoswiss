@@ -1,2 +1,3 @@
-from ckanext.swisstopo.harvesters.swisstopoharvester import SwisstopoHarvester
-from ckanext.swisstopo.harvesters.base import OGDCHHarvesterBase
+
+from ckanext.meteoswiss.harvesters.meteoswissharvester import MeteoswissHarvester
+

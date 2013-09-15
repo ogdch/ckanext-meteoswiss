@@ -1,0 +1,38 @@
+#!/bin/bash
+
+DAEMON=/home/www-data/pyenv/bin/python
+ARGS="/home/www-data/pyenv/bin/paster --plugin=ckanext-meteoswiss meteoswiss_harvest fetch_consumer --config=/home/www-data/production.ini"
+PIDFILE=/home/www-data/pid/meteoswiss_fetch.pid
+
+function start {
+    /sbin/start-stop-daemon --start --pidfile $PIDFILE \
+        --user www-data --group www-data \
+        -b --make-pidfile \
+        --chuid www-data \
+        --exec $DAEMON -- $ARGS
+}  
+function stop {
+    /sbin/start-stop-daemon --stop --pidfile $PIDFILE --verbose
+}
+
+case "$1" in
+  start)
+    echo "Starting server ..."
+    start
+    ;;
+  stop)
+    echo "Stopping server ..."
+    stop
+    ;;
+  restart)
+    echo "Restarting server ..."
+    stop
+    start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+    ;;
+esac
+
+exit 0

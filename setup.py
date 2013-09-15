@@ -26,10 +26,8 @@ setup(
 	"""
     [ckan.plugins]
 	#meteoswiss_plugin=ckanext.meteoswiss:PluginClass
-    meteoswiss=ckanext.meteoswiss.plugins:MeteoswissHarvest
     meteoswiss_harvest=ckanext.meteoswiss.harvesters:MeteoswissHarvester
     [paste.paster_command]
-    meteoswiss=ckanext.meteoswiss.commands.meteoswiss:MeteoswissCommand
     meteoswiss_harvest=ckanext.meteoswiss.commands.harvester:Harvester
 	""",
 )
