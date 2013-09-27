@@ -11,6 +11,7 @@ from boto.s3.key import Key
 from ckan import model
 from ckan.model import Session
 from ckan.logic import get_action, action
+from ckan.lib.munge import munge_title_to_name
 
 from ckanext.harvest.model import HarvestJob, HarvestObject
 from ckanext.harvest.harvesters import HarvesterBase
@@ -279,7 +280,7 @@ class MeteoswissHarvester(HarvesterBase):
         group_name = self.GROUPS['de'][0]
         data_dict = {
             'id': group_name,
-            'name': self._gen_new_name(group_name),
+            'name': munge_title_to_name(group_name),
             'title': group_name
             }
         try:
@@ -295,8 +296,8 @@ class MeteoswissHarvester(HarvesterBase):
         try:
             data_dict = {
                 'permission': 'edit_group',
-                'id': self._gen_new_name(self.ORGANIZATION[u'de']),
-                'name': self._gen_new_name(self.ORGANIZATION[u'de']),
+                'id': munge_title_to_name(self.ORGANIZATION[u'de']),
+                'name': munge_title_to_name(self.ORGANIZATION[u'de']),
                 'title': self.ORGANIZATION[u'de']
             }
             organization = get_action('organization_show')(context, data_dict)
