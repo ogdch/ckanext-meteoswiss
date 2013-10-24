@@ -311,7 +311,7 @@ class MeteoswissHarvester(HarvesterBase):
                 'permission': 'edit_group',
                 'id': munge_title_to_name(self.ORGANIZATION['de']['name']),
                 'name': munge_title_to_name(self.ORGANIZATION['de']['name']),
-                'title': self.ORGANIZATION['de']['name']
+                'title': self.ORGANIZATION['de']['name'],
                 'description': self.ORGANIZATION['de']['description'],
                 'extras': ('website', self.ORGANIZATION['de']['website'])
             }
