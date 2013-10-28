@@ -58,10 +58,23 @@ class MeteoswissHarvester(HarvesterBase):
     }
 
     ORGANIZATION = {
-        u'de': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
-        u'fr': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
-        u'it': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
-        u'en': u'Federal Office of Meteorology and Climatology MeteoSwiss',
+        'de': {
+            'name': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
+            'description': u'Der nationale Wetter- und Klimadienst. Messstationen, Wetterradars und Satelliten überwachen das Wetter. Aus den Messdaten erstellt MeteoSchweiz Prognosen, Warnungen und Klimaanalysen.',
+            'website': u'http://www.meteoschweiz.admin.ch/'
+        },
+        'fr': {
+            'name': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
+            'description': u'Le service météorologique et climatologique national. A partir de l\'ensemble des stations de mesure, des radars météorologiques et des satellites MétéoSuisse élabore pronostics, alertes et analyse climatiques.'
+        },
+        'it': {
+            'name': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
+            'description': u'il servizio nazionale di meteorologia e climatologia. Sulla base di dati di stazioni di rilevamento, radar meteorologici e satelliti  MeteoSvizzera elabora previsioni del tempo, allerte e le analisi climatologiche.'
+        },
+        'en': {
+            'name': u'Federal Office of Meteorology and Climatology MeteoSwiss',
+            'description': u'the national weather and climate service. Meteorological stations, weather radars and satellites monitor the weather. Using the collected data, MeteoSwiss generates forecasts, warnings and climate analyses.'
+        }
     }
 
     GROUPS = {
@@ -296,9 +309,16 @@ class MeteoswissHarvester(HarvesterBase):
         try:
             data_dict = {
                 'permission': 'edit_group',
-                'id': munge_title_to_name(self.ORGANIZATION[u'de']),
-                'name': munge_title_to_name(self.ORGANIZATION[u'de']),
-                'title': self.ORGANIZATION[u'de']
+                'id': munge_title_to_name(self.ORGANIZATION['de']['name']),
+                'name': munge_title_to_name(self.ORGANIZATION['de']['name']),
+                'title': self.ORGANIZATION['de']['name'],
+                'description': self.ORGANIZATION['de']['description'],
+                'extras': [
+                    {
+                        'key': 'website',
+                        'value': self.ORGANIZATION['de']['website']
+                    }
+                ]
             }
             organization = get_action('organization_show')(context, data_dict)
         except:
@@ -313,12 +333,13 @@ class MeteoswissHarvester(HarvesterBase):
             translations = []
 
             for lang, org in self.ORGANIZATION.items():
-                if lang != u'de':
-                    translations.append({
-                        'lang_code': lang,
-                        'term': self.ORGANIZATION[u'de'],
-                        'term_translation': org
-                    })
+                if lang != 'de':
+                    for field in ['name', 'description']:
+                        translations.append({
+                            'lang_code': lang,
+                            'term': self.ORGANIZATION['de'][field],
+                            'term_translation': org[field]
+                        })
 
             return translations
 
