@@ -69,11 +69,11 @@ class MeteoswissHarvester(HarvesterBase):
         },
         'it': {
             'name': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
-            'description': u'il servizio nazionale di meteorologia e climatologia. Sulla base di dati di stazioni di rilevamento, radar meteorologici e satelliti  MeteoSvizzera elabora previsioni del tempo, allerte e le analisi climatologiche.'
+            'description': u'Il servizio nazionale di meteorologia e climatologia. Sulla base di dati di stazioni di rilevamento, radar meteorologici e satelliti  MeteoSvizzera elabora previsioni del tempo, allerte e le analisi climatologiche.'
         },
         'en': {
             'name': u'Federal Office of Meteorology and Climatology MeteoSwiss',
-            'description': u'the national weather and climate service. Meteorological stations, weather radars and satellites monitor the weather. Using the collected data, MeteoSwiss generates forecasts, warnings and climate analyses.'
+            'description': u'The national weather and climate service. Meteorological stations, weather radars and satellites monitor the weather. Using the collected data, MeteoSwiss generates forecasts, warnings and climate analyses.'
         }
     }
 
