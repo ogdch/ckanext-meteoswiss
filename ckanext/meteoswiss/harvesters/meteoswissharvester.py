@@ -1,5 +1,4 @@
 #n -*- coding: utf-8 -*-
-import xlrd
 import json
 import os
 import tempfile
@@ -13,7 +12,7 @@ from ckan.model import Session
 from ckan.logic import get_action, action
 from ckan.lib.munge import munge_title_to_name
 
-from ckanext.harvest.model import HarvestJob, HarvestObject
+from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters import HarvesterBase
 from pylons import config
 
@@ -22,6 +21,7 @@ from ..helpers.metadata import MetaDataParser
 import logging
 log = logging.getLogger(__name__)
 
+
 class MeteoswissHarvester(HarvesterBase):
     '''
     The harvester for meteoswiss
@@ -29,10 +29,11 @@ class MeteoswissHarvester(HarvesterBase):
 
     HARVEST_USER = u'harvest'
 
-
     METADATA_FILE_NAME = u'OGD@Bund_Metadaten_MeteoSchweiz_rig_V3 6.xlsx'
-    METADATA_FILE_PATH = u'ch.meteoschweiz.normwerttabellen/%s' % METADATA_FILE_NAME
-
+    METADATA_FILE_PATH = (
+        u'ch.meteoschweiz.normwerttabellen/%s'
+        % METADATA_FILE_NAME
+    )
 
     BUCKET_NAME = config.get('ckanext.meteoswiss.bucket_name')
     AWS_ACCESS_KEY = config.get('ckanext.meteoswiss.access_key')
@@ -59,21 +60,53 @@ class MeteoswissHarvester(HarvesterBase):
 
     ORGANIZATION = {
         'de': {
-            'name': u'Bundesamt für Meteorologie und Klimatologie MeteoSchweiz',
-            'description': u'Der nationale Wetter- und Klimadienst. Messstationen, Wetterradars und Satelliten überwachen das Wetter. Aus den Messdaten erstellt MeteoSchweiz Prognosen, Warnungen und Klimaanalysen.',
+            'name': (
+                u'Bundesamt für Meteorologie '
+                u'und Klimatologie MeteoSchweiz'
+            ),
+            'description': (
+                u'Der nationale Wetter- und Klimadienst. Messstationen, '
+                u'Wetterradars und Satelliten überwachen das Wetter. '
+                u'Aus den Messdaten erstellt MeteoSchweiz Prognosen, '
+                u'Warnungen und Klimaanalysen.'
+            ),
             'website': u'http://www.meteoschweiz.admin.ch/'
         },
         'fr': {
-            'name': u'Office fédéral de météorologie et de climatologie MétéoSuisse',
-            'description': u'Le service météorologique et climatologique national. A partir de l\'ensemble des stations de mesure, des radars météorologiques et des satellites MétéoSuisse élabore pronostics, alertes et analyse climatiques.'
+            'name': (
+                u'Office fédéral de météorologie '
+                u'et de climatologie MétéoSuisse'
+            ),
+            'description': (
+                u'Le service météorologique et climatologique national. '
+                u'A partir de l\'ensemble des stations de mesure, des '
+                u'radars météorologiques et des satellites MétéoSuisse '
+                u'élabore pronostics, alertes et analyse climatiques.'
+            )
         },
         'it': {
-            'name': u'Ufficio federale di meteorologia e climatologia MeteoSvizzera',
-            'description': u'Il servizio nazionale di meteorologia e climatologia. Sulla base di dati di stazioni di rilevamento, radar meteorologici e satelliti  MeteoSvizzera elabora previsioni del tempo, allerte e le analisi climatologiche.'
+            'name': (
+                u'Ufficio federale di meteorologia e '
+                u'climatologia MeteoSvizzera'
+            ),
+            'description': (
+                u'Il servizio nazionale di meteorologia e climatologia. '
+                u'Sulla base di dati di stazioni di rilevamento, radar '
+                u'meteorologici e satelliti  MeteoSvizzera elabora previsioni '
+                u'del tempo, allerte e le analisi climatologiche.'
+            )
         },
         'en': {
-            'name': u'Federal Office of Meteorology and Climatology MeteoSwiss',
-            'description': u'The national weather and climate service. Meteorological stations, weather radars and satellites monitor the weather. Using the collected data, MeteoSwiss generates forecasts, warnings and climate analyses.'
+            'name': (
+                u'Federal Office of Meteorology and '
+                u'Climatology MeteoSwiss'
+            ),
+            'description': (
+                u'The national weather and climate service. Meteorological '
+                u'stations, weather radars and satellites monitor the '
+                u'weather. Using the collected data, MeteoSwiss generates '
+                u'forecasts, warnings and climate analyses.'
+            )
         }
     }
 
@@ -106,13 +139,15 @@ class MeteoswissHarvester(HarvesterBase):
             metadata_file = Key(self._get_s3_bucket())
             metadata_file.key = self.METADATA_FILE_PATH
 
-            metadata_file_path = os.path.join(temp_dir, self.METADATA_FILE_NAME)
+            metadata_file_path = os.path.join(
+                temp_dir,
+                self.METADATA_FILE_NAME
+            )
             metadata_file.get_contents_to_filename(metadata_file_path)
             return metadata_file_path
         except Exception, e:
             log.exception(e)
             raise
-
 
     def _get_s3_resources(self, resources, s3_prefix):
         '''
@@ -159,7 +194,6 @@ class MeteoswissHarvester(HarvesterBase):
             if basename in resource.get('Standort', ''):
                 return resource.get('description')
 
-
     def info(self):
         return {
             'name': 'meteoswiss',
@@ -184,9 +218,8 @@ class MeteoswissHarvester(HarvesterBase):
             metadata['sheet_name'] = sheet_name
 
             obj = HarvestObject(
-                #guid = metadata.get('id'),
-                job = harvest_job,
-                content = json.dumps(metadata)
+                job=harvest_job,
+                content=json.dumps(metadata)
             )
 
             obj.save()
@@ -247,8 +280,11 @@ class MeteoswissHarvester(HarvesterBase):
             # Find or create group the dataset should get assigned to
             package_dict['groups'] = self._find_or_create_groups(context)
 
-            # Find or create the organization the dataset should get assigned to
-            package_dict['owner_org'] = self._find_or_create_organization(context)
+            # Find or create the organization
+            # the dataset should get assigned to
+            package_dict['owner_org'] = self._find_or_create_organization(
+                context
+            )
 
             # because license_url does not exist, we save it in extras for now
             extras = []
@@ -259,7 +295,6 @@ class MeteoswissHarvester(HarvesterBase):
 
             package_dict['extras'] = extras
             log.debug('Extras %s' % extras)
-
 
             # Never import state from data source!
             if 'state' in package_dict:
@@ -275,10 +310,14 @@ class MeteoswissHarvester(HarvesterBase):
                 del package_dict['tags']
 
             package = model.Package.get(package_dict['id'])
-            model.PackageRole(package=package, user=user, role=model.Role.ADMIN)
+            model.PackageRole(
+                package=package,
+                user=user,
+                role=model.Role.ADMIN
+            )
 
             #log.debug('Save or update package %s' % (package_dict['name'],))
-            result = self._create_or_update_package(package_dict, harvest_object)
+            self._create_or_update_package(package_dict, harvest_object)
 
             log.debug('Save or update term translations')
             self._submit_term_translations(context, package_dict)
@@ -322,7 +361,10 @@ class MeteoswissHarvester(HarvesterBase):
             }
             organization = get_action('organization_show')(context, data_dict)
         except:
-            organization = get_action('organization_create')(context, data_dict)
+            organization = get_action('organization_create')(
+                context,
+                data_dict
+            )
         return organization['id']
 
     def _metadata_term_translations(self):

@@ -2,6 +2,7 @@ import xlrd
 
 from ckanext.harvest.harvesters.base import munge_tag
 
+
 class MetaDataParser(object):
 
     # Mapping of the rows in the xls to dict keys
@@ -19,7 +20,7 @@ class MetaDataParser(object):
     )
 
     # Only these attributes will be imported into dataset
-    DATASET_ATTRIBUTES =(
+    DATASET_ATTRIBUTES = (
         'id',
         'name',
         'title',
@@ -30,7 +31,7 @@ class MetaDataParser(object):
         'maintainer_email',
         'license_id',
         'license_url',
-        'licence_url', # Support typo
+        'licence_url',  # Support typo
         'tags',
     )
 
@@ -49,7 +50,6 @@ class MetaDataParser(object):
         metadata['translations'] = self._build_term_translations(rows)
 
         return metadata
-
 
     def _get_row_dict_array(self, sheet_name):
         '''
@@ -88,7 +88,7 @@ class MetaDataParser(object):
             if row.get('ckan_entity') == 'Dataset' and \
                row.get('ckan_attribute') in self.DATASET_ATTRIBUTES:
                 dataset[row.get('ckan_attribute')] = row.get('value_de')
-        
+
         if 'name' in dataset:
             dataset['name'] = munge_tag(dataset['name'])
 
@@ -99,7 +99,7 @@ class MetaDataParser(object):
         Create a list from all resources in the rows
         '''
         current = {}
-        resources = [current,]
+        resources = [current, ]
         for row in rows:
             if row.get('ckan_entity') == 'Resource':
                 attr = row.get('ckan_attribute')
@@ -137,14 +137,14 @@ class MetaDataParser(object):
                         if len(split_term) == len(split_trans):
                             for term, trans in zip(split_term, split_trans):
                                 translations.append({
-                                   u'lang_code': lang,
-                                   u'term': munge_tag(term),
-                                   u'term_translation': munge_tag(trans)
+                                    u'lang_code': lang,
+                                    u'term': munge_tag(term),
+                                    u'term_translation': munge_tag(trans)
                                 })
                     else:
                         translations.append({
-                           u'lang_code': lang,
-                           u'term': term,
-                           u'term_translation': trans
+                            u'lang_code': lang,
+                            u'term': term,
+                            u'term_translation': trans
                         })
         return translations
