@@ -54,7 +54,6 @@ class MetaDataParsingTest(TestCase):
         self.assertEqual(len(data.get('resources')), 2)
         self.assertGreater(len(data.get('translations')), 0)
 
-
     def test_homogene(self):
         data = self.parser.parse_sheet(u'HomogeneDaten')
 
